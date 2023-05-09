@@ -6,7 +6,7 @@
 # --------------------------------------------------------------------------------------------------
 
 
-library(tidytable)
+library(dplyr)
 library(ggplot2)
 library(epiplots)
 
@@ -19,6 +19,10 @@ ggplot2::theme_set(theme_clean(legend_position = 'top'))
 
 
 # IMPORT -------------------------------------------------------------------------------------------
+hist <- rio::import(here::here('data', 'global_history.xlsx')) %>%
+  select(strain, lat, long, district, cases, deaths)
+
+
 df <- rio::import(here::here('data', 'linelist_clean.rds')) %>%
   select.(-age) %>%
   rename.(class = classification,
@@ -40,8 +44,50 @@ df <- rio::import(here::here('data', 'linelist_clean.rds')) %>%
           week_conf, date_iso, date_death, date_discharge)
 
 
+# WRANGLE ------------------------------------------------------------------------------------------
+
+# TIME VARIABLE INDICATORS -----
+# survival rate
+
+
+# % under 10
 
 # PLOTS : DESCRIPTIVE ------------------------------------------------------------------------------
+
+# SLIDE 2 : MAP OF HISTORIC UGANDAN OUTBREAKS -----
+
+
+# SLIDE 4-9 : MAP AND EPICURVE OF OUTBREAK PROGRESSION -----
+timepoints <- c('2022-09-15',
+                '2022-09-27',
+                '2022-10-04',
+                '2022-10-18',
+                '2022-10-25',
+                '2022-11-30')
+
+# epicurves
+
+# maps
+
+
+
+# SLIDE 11 : CHAINS OF TRANSMISSION -----
+
+
+
+# SLIDE 13 : DEMOGRAPHY -----
+# sex/age pyramid
+
+# cfr by age (+sex)
+
+
+
+# SLIDE 14 : KIDS -----
+# % < 10 in time
+
+
+# --------------------------------------------------------------------------------------------------
+
 
 # FIG : EPICURVE -----
 tmp_cases <- df %>%
