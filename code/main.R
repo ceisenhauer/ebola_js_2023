@@ -5,20 +5,16 @@
 # Date : May 2023
 # --------------------------------------------------------------------------------------------------
 
-
 library(tidytable)
 library(ggplot2)
 library(epiplots)
-
-colors_exit <- c(colors$blue_light_3,
-                 colors$blue,
-                 colors$blue_darker)
 
 ggplot2::theme_set(theme_clean(legend_position = 'top'))
 
 
 
-# IMPORT -------------------------------------------------------------------------------------------
+# SET UP MAPS --------------------------------------------------------------------------------------
+# background tiles : historic outbreaks
 uga_box <- c(top = 1.1,
              bottom = -0.45,
              left = 30,
@@ -29,6 +25,7 @@ uga_map <- ggmap::get_map(location = uga_box,
                           source = 'stamen',
                           maptype = 'terrain-background')
 
+# background tiles : 2022 outbreak
 hist_box <- c(top = 5,
               bottom = -4,
               left = 26,
@@ -39,14 +36,18 @@ hist_map <- ggmap::get_map(location = hist_box,
                            source = 'stamen',
                            maptype = 'terrain-background')
 
+
+# admin boundaries -----
 uga <- epiplaces::load_map('uganda',
                            level = 'zone')
 
-#uga_subset <- uga %>%
-  #filter.(adm1_name %in% c('Mubende', 'Kyegegwa', 'Kassanda', 'Kabarole', 'Kibaale')) %>%
-  #sf::st_as_sf()
+africa <- epiplaces::load_map('africa')
 
+
+
+# IMPORT DATA --------------------------------------------------------------------------------------
 locations <- rio::import(here::here('data', 'map_locations.csv'))
+
 etus <- rio::import(here::here('data', 'locations_etus.xlsx')) %>%
   mutate.(week = lubridate::floor_date(as.Date(date_operational),
                                        unit = 'weeks',
@@ -62,30 +63,24 @@ hist <- rio::import(here::here('data', 'global_history.xlsx')) %>%
                       values_to = 'n')
 
 
+ll <- rio::import(here::here('data', 'linelist_clean.rds'))
+
 df <- rio::import(here::here('data', 'linelist_clean.rds')) %>%
   select.(-age) %>%
   rename.(class = classification,
           age = age_class,
-          week_onset = week_of_onset,
-          week_conf = week_of_confirmation,
-          date_onset = date_of_onset,
-          date_conf = date_of_confirmation,
-          date_iso = date_of_isolation,
-          date_death = date_of_death,
-          date_discharge = date_of_discharge) %>%
+          week_onset = week_of_onset) %>%
   mutate.(exit = case_when(class == 'Probable' ~ 'Probable Death',
                            status == 'Alive' ~ 'Confirmed Recovery',
                            TRUE ~ 'Confirmed Death'),
           exit = factor(exit,
                         levels = c('Confirmed Recovery', 'Probable Death', 
                                    'Confirmed Death'))) %>%
-  select.(district, age, sex, hcw, exit, status, date_onset, week_onset, date_conf, 
-          week_conf, date_iso, date_death, date_discharge)
+  select.(district, age, sex, exit, status, week_onset) 
 
 
-# PLOTS --------------------------------------------------------------------------------------------
 
-# SLIDE 2 : MAP OF HISTORIC UGANDAN OUTBREAKS -----
+# MAP OF HISTORIC UGANDAN OUTBREAKS ----------------------------------------------------------------
 geom_choro <- purrr::partial(
   geom_sf,
   inherit.aes = FALSE,
@@ -117,9 +112,10 @@ ggsave(here::here('out', '02_history.svg'),
        width = 19.6,
        height = 11.9)
 
-# SLIDE 4-9 : MAP AND EPICURVE OF OUTBREAK PROGRESSION -----
 
-# epicurve
+
+# MAP AND EPICURVE OF OUTBREAK PROGRESSION ---------------------------------------------
+# epicurve -----
 tmp_cases <- df %>%
   summarize.(cases = n(),
              .by = c(exit, week_onset)) 
@@ -160,25 +156,22 @@ ggsave(here::here('out', '04_epicurve_by_exit_wide.svg'),
 
 
 # maps
-timepoints <- c(#'2022-09-12',
-                #'2022-09-26',
-                #'2022-09-19',
-                #'2022-10-03',
-                #'2022-10-10',
-                #'2022-10-17',
-                #'2022-10-24',
-                '2022-10-31')
-                #'2022-11-14')
+timepoints <- c('2022-09-12',
+                '2022-09-26',
+                '2022-09-19',
+                '2022-10-03',
+                '2022-10-10',
+                '2022-10-17',
+                '2022-10-24',
+                '2022-10-31',
+                '2022-11-14')
 
 for (t in timepoints) {
-
   tmp_etus <- etus %>%
     filter.(week <= t)
 
   tmp_cases <- df %>%
     filter.(week_onset <= t) %>%
-    #summarize.(cases = n(),
-               #.by = 'district')
     summarize.(cases = n(),
                .by = c('district', 'status')) %>%
     tidyr::pivot_wider(names_from = status,
@@ -224,7 +217,6 @@ for (t in timepoints) {
                color = colors$blue,
                alpha = 0.4) +
     scale_size_continuous(name = 'Patients',
-                          #trans = 'log',
                           breaks = c(20, 40, 60, 80),
                           range = c(5, 45)) +
     geom_point(data = tmp_etus,
@@ -243,18 +235,19 @@ for (t in timepoints) {
                        values = c(5, 0)) + 
     theme_void()
 
-
   ggsave(here::here('out', paste0('04_snapshot_', t, '.svg')),
          width = 15.7,
          height = 8.16)
 }
 
-# SLIDE 11 : CHAINS OF TRANSMISSION -----
+
+
+# CHAINS OF TRANSMISSION ---------------------------------------------------------------------------
 
 
 
-# SLIDE 13 : DEMOGRAPHY -----
-# sex/age pyramid
+# DEMOGRAPHY ---------------------------------------------------------------------------------------
+# sex/age pyramid -----
 tmp <- df %>%
   summarize.(cases = n(),
              .by = c(exit, sex, age)) %>%
@@ -276,8 +269,7 @@ tmp %>%
   plot_pyramid(id = 'age',
                fill = 'exit',
                text_size = 7,
-               #limits_left = c(0, 30),
-               limits_right = c(0, 30),
+               limits_left = c(0, 30),
                val_left = 'Female',
                fills_left = c(colors$blue_light_4,
                               colors$blue_light,
@@ -292,10 +284,9 @@ tmp %>%
 ggsave(here::here('out', '13_sex_pyramid.svg'),
        width = 10.1,
        height = 6.25)
-       #height = 4.17,
-       #width = 8.39)
 
-# cfr by sex 
+
+# cfr by sex -----
 tmp <- df %>%
   summarize.(cases = n(),
              deaths = sum(status == 'Dead'),
@@ -309,7 +300,6 @@ tmp %>%
              y = cfr,
              color = sex)) +
   geom_point(size = 10) +
-             #color = colors$grey_light_1) +
   geom_point(aes(x = sex,
                  y = upper),
              size = 2) +
@@ -321,7 +311,6 @@ tmp %>%
                    y = lower,
                    yend = upper),
                size = 3) +
-               #color = colors$grey_light_1) + 
   scale_color_manual(values = c(colors$blue_light_1,
                                 colors$grey_light_1)) +
   scale_y_continuous(labels = scales::percent,
@@ -334,7 +323,7 @@ ggsave(here::here('out', '13_fatality_by_sex.png'),
        width = 3.73,
        height = 4.07)
 
-# cfr by age 
+# cfr by age ------
 tmp <- df %>%
   mutate.(age = case_when(age %in% c('60-69', '70+', '50-59') ~ '50+',
                           TRUE ~ age),
@@ -387,7 +376,7 @@ ggsave(here::here('out', '13_fatality_by_age.png'),
        height = 4.07)
 
 
-# SLIDE 14 : KIDS -----
+# KIDS ---------------------------------------------------------------------------------------------
 # % < 10 in time
 tmp_cases <- df %>%
   summarize.(kids = sum(age == '0-9'),
@@ -405,11 +394,6 @@ tmp_cases %>%
   geom_line(aes(y = prop_kids),
             color = colors$blue,
             linewidth = 1.5) +
-  #second_axis(scale_factor = scale_factor,
-              #breaks = c(0, 0.5, 1),
-              #percent = TRUE,
-              #color = colors$grey_dark_2,
-              #title = 'Survival Risk') +
   scale_y_continuous(labels = scales::percent) +
   date_axis(date_breaks = '2 weeks') +
   ylab('Children < 10yo') +
