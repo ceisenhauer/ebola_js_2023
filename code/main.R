@@ -16,25 +16,7 @@ colors_exit <- c(colors$blue_light_3,
 
 ggplot2::theme_set(theme_clean(legend_position = 'top'))
 
-# thanks @andyfeucher: https://stackoverflow.com/questions/47749078/how-to-put-a-geom-sf-produced-map-on-top-of-a-ggmap-produced-raster
-ggmap_bbox <- function(map) {
-  if (!inherits(map, "ggmap")) stop("map must be a ggmap object")
-  # Extract the bounding box (in lat/lon) from the ggmap to a numeric vector, 
-  # and set the names to what sf::st_bbox expects:
-  map_bbox <- setNames(unlist(attr(map, "bb")), 
-                       c("ymin", "xmin", "ymax", "xmax"))
 
-  # Coonvert the bbox to an sf polygon, transform it to 3857, 
-  # and convert back to a bbox (convoluted, but it works)
-  bbox_3857 <- sf::st_bbox(sf::st_transform(sf::st_as_sfc(sf::st_bbox(map_bbox, crs = 4326)), 3857))
-
-  # Overwrite the bbox of the ggmap object with the transformed coordinates 
-  attr(map, "bb")$ll.lat <- bbox_3857["ymin"]
-  attr(map, "bb")$ll.lon <- bbox_3857["xmin"]
-  attr(map, "bb")$ur.lat <- bbox_3857["ymax"]
-  attr(map, "bb")$ur.lon <- bbox_3857["xmax"]
-  map
-}
 
 # IMPORT -------------------------------------------------------------------------------------------
 uga_box <- c(top = 1.1,
@@ -42,15 +24,10 @@ uga_box <- c(top = 1.1,
              left = 30,
              right = 33.5)
 
-uga_map <- ggmap::get_map(location = uga_box, #osmdata::getbb('mubende'),
+uga_map <- ggmap::get_map(location = uga_box,
                           zoom = 10,
                           source = 'stamen',
-                          maptype = 'terrain')
-
-hist_box <- c(top = 3.2,
-              bottom = 0.1,
-              left = 29.5,
-              right = 32.8)
+                          maptype = 'terrain-background')
 
 hist_box <- c(top = 5,
               bottom = -4,
@@ -62,8 +39,8 @@ hist_map <- ggmap::get_map(location = hist_box,
                            source = 'stamen',
                            maptype = 'terrain-background')
 
-#uga <- epiplaces::load_map('uganda',
-                           #level = 'zone')
+uga <- epiplaces::load_map('uganda',
+                           level = 'zone')
 
 #uga_subset <- uga %>%
   #filter.(adm1_name %in% c('Mubende', 'Kyegegwa', 'Kassanda', 'Kabarole', 'Kibaale')) %>%
@@ -106,94 +83,39 @@ df <- rio::import(here::here('data', 'linelist_clean.rds')) %>%
           week_conf, date_iso, date_death, date_discharge)
 
 
-# WRANGLE ------------------------------------------------------------------------------------------
-
-# TIME VARIABLE INDICATORS -----
-## survival rate
-#df_cases <- df %>%
-  #summarize.(cases = n(),
-             #.by = c(exit, week_onset)) 
-
-#df_survivors <- df %>%
-  #summarize.(cases = n(),
-             #survivors = sum(exit == 'Confirmed Recovery'),
-             #.by = c(week_onset)) %>%
-  #mutate.(risk_survive = survivors / cases)
-
-#scale_factor <- max(tmp_survivors$cases) / max(tmp_survivors$risk_survive)
-
-
-
-# % under 10
-
-# PLOTS : DESCRIPTIVE ------------------------------------------------------------------------------
+# PLOTS --------------------------------------------------------------------------------------------
 
 # SLIDE 2 : MAP OF HISTORIC UGANDAN OUTBREAKS -----
-ggmap::ggmap(hist_map) +
-  #geom_sf(data = africa,
-          #fill = 'transparent',
-          #color = colors$grey)
-  #geom_point(data = hist,
-             #aes(x = long,
-                 #y = lat,
-                 #color = strain),
-                 ##size = n),
-             #size = 10,
-             #alpha = 1) +
-  #scale_size_continuous(name = 'Patients',
-                        ##trans = 'log',
-                        #range = c(5, 65)) +
-  #scale_color_manual(name = 'Strain',
-                     #values = c(colors$grey_dark,
-                                #colors$blue,
-                                #colors$gold)) +
-  theme_void()
+geom_choro <- purrr::partial(
+  geom_sf,
+  inherit.aes = FALSE,
+  color = 'black'
+)
 
 districts_sudan <- c('gulu', 'luwero', 'kibaale', 'mubende')
 
-#ggplot(africa) +
-  #geom_sf(fill = 'white',
-          #color = colors$grey_light_3) +
-#ggplot() +
-#ggmap::ggmap(hist_map) +
-map_bg <- ggmap_bbox(hist_map)
-
 ggmap::ggmap(hist_map) +
-
-ggplot() +
-  geom_sf(data = uga,
-          #linetype = 'dashed',
-          fill = 'transparent',
-          color = 'black') +
-  geom_sf(data = uga %>% filter.(pcode %in% districts_sudan) %>% sf::st_as_sf(),
-          #linetype = 'dashed',
-          fill = colors$blue,
-          color = 'white') +
-  geom_sf(data = uga %>% filter.(pcode == 'kasese') %>% sf::st_as_sf(),
-          #linetype = 'dashed',
-          fill = colors$gold,
-          color = 'white') +
-  geom_sf(data = uga %>% filter.(pcode == 'bundibugyo') %>% sf::st_as_sf(),
-          #linetype = 'dashed',
-          fill = colors$grey,
-          color = 'white') +
+  geom_choro(data = africa,
+             fill = 'transparent',
+             linewidth = 0.75) +
+  geom_choro(data = uga,
+             fill = 'transparent',
+             linetype = 'dotted',
+             linewidth = 0.6) +
+  geom_choro(data = uga %>% filter.(pcode %in% districts_sudan) %>% sf::st_as_sf(),
+             fill = colors$blue,
+             linewidth = 0.6) +
+  geom_choro(data = uga %>% filter.(pcode == 'kasese') %>% sf::st_as_sf(),
+             linewidth = 0.6,
+             fill = colors$gold) +
+  geom_choro(data = uga %>% filter.(pcode == 'bundibugyo') %>% sf::st_as_sf(),
+             linewidth = 0.6,
+             fill = colors$grey) +
   theme_void()
 
-ggsave(here::here('out', '02_history_choro_forground.svg'),
-       width = 12.9,
-       height = 9.61)
-
-ggsave(here::here('out', '02_history_background.svg'),
-       width = 33.9,
-       height = 21.8)
-       #width = 19.6,
-       #height = 11.9)
-
-,
-       width = 13.6,
-       height = 21.9)
-
-
+ggsave(here::here('out', '02_history.svg'),
+       width = 19.6,
+       height = 11.9)
 
 # SLIDE 4-9 : MAP AND EPICURVE OF OUTBREAK PROGRESSION -----
 
@@ -238,12 +160,15 @@ ggsave(here::here('out', '04_epicurve_by_exit_wide.svg'),
 
 
 # maps
-timepoints <- c('2022-09-12',
-                '2022-09-26',
-                '2022-10-03',
-                '2022-10-17',
-                '2022-10-24',
-                '2022-11-24')
+timepoints <- c(#'2022-09-12',
+                #'2022-09-26',
+                #'2022-09-19',
+                #'2022-10-03',
+                #'2022-10-10',
+                #'2022-10-17',
+                #'2022-10-24',
+                '2022-10-31')
+                #'2022-11-14')
 
 for (t in timepoints) {
 
@@ -268,49 +193,55 @@ for (t in timepoints) {
                                  Dead = 'Deaths')) %>%
     left_join.(locations)
 
-  #ggplot(uga) +
-    #geom_sf(fill = 'white',
-            #color = colors$grey_light_3) +
-    #geom_sf(data = uga_subset,
-            #fill = 'white',
-            #color = colors$grey) +
-    #geom_point(data = tmp_cases,
-               #aes(x = long,
-                   #y = lat,
-                   #size = n),
-               #color = colors$blue,
-               #alpha = 0.5) +
-    #scale_size_continuous(name = 'Patients',
-                          ##trans = 'log',
-                          #range = c(1, 10)) +
-    #theme_void()
+  districts <- tmp_cases %>%
+    mutate.(district = case_when(district == 'Jinja' ~ 'Jinja City',
+                                 TRUE ~ district)) %>%
+    pull.(district) %>%
+    unique()
 
-
-    ggmap::ggmap(uga_map) +
-      geom_point(data = tmp_cases,
-                 aes(x = long,
-                     y = lat,
-                     size = n),
-                 color = colors$blue,
-                 alpha = 0.4) +
-      scale_size_continuous(name = 'Patients',
-                            #trans = 'log',
-                            range = c(5, 45)) +
-      geom_point(data = tmp_etus,
-                 aes(x = long,
-                     y = lat,
-                     shape = type),
-                 color = 'white',
-                 size = 4) +
-      geom_point(data = tmp_etus,
-                 aes(x = long,
-                     y = lat,
-                     shape = type),
-                 color = 'black',
-                 size = 3) +
-      scale_shape_manual(name = '',
-                         values = c(5, 0)) + 
-      theme_void()
+  ggmap::ggmap(uga_map) +
+    geom_choro(data = africa,
+               fill = 'transparent',
+               linewidth = 0.75) +
+    geom_choro(data = uga,
+               fill = 'transparent',
+               linetype = 'dotted',
+               linewidth = 0.6) +
+    geom_choro(data = uga %>% filter.(adm1_name %in% districts) %>% sf::st_as_sf(),
+               fill = 'transparent',
+               linewidth = 0.6) +
+    geom_point(data = data.frame(n = 83,
+                                 lat = 0.567,
+                                 long = 31.9),
+               aes(x = long,
+                   y = lat,
+                   size = n),
+               color = 'transparent') +
+    geom_point(data = tmp_cases,
+               aes(x = long,
+                   y = lat,
+                   size = n),
+               color = colors$blue,
+               alpha = 0.4) +
+    scale_size_continuous(name = 'Patients',
+                          #trans = 'log',
+                          breaks = c(20, 40, 60, 80),
+                          range = c(5, 45)) +
+    geom_point(data = tmp_etus,
+               aes(x = long,
+                   y = lat,
+                   shape = type),
+               color = 'white',
+               size = 4) +
+    geom_point(data = tmp_etus,
+               aes(x = long,
+                   y = lat,
+                   shape = type),
+               color = 'black',
+               size = 3) +
+    scale_shape_manual(name = '',
+                       values = c(5, 0)) + 
+    theme_void()
 
 
   ggsave(here::here('out', paste0('04_snapshot_', t, '.svg')),
@@ -375,16 +306,27 @@ tmp <- df %>%
 
 tmp %>%
   ggplot(aes(x = sex,
-             y = cfr)) +
-  geom_point(size = 8,
-             color = colors$grey_light_1) +
+             y = cfr,
+             color = sex)) +
+  geom_point(size = 10) +
+             #color = colors$grey_light_1) +
+  geom_point(aes(x = sex,
+                 y = upper),
+             size = 2) +
+  geom_point(aes(x = sex,
+                 y = lower),
+             size = 2) +
   geom_segment(aes(x = sex,
                    xend = sex,
                    y = lower,
                    yend = upper),
-               color = colors$grey_light_1) + 
+               size = 3) +
+               #color = colors$grey_light_1) + 
+  scale_color_manual(values = c(colors$blue_light_1,
+                                colors$grey_light_1)) +
   scale_y_continuous(labels = scales::percent,
                      limits = c(0.2, 0.9)) +
+  theme(legend.position = 'none') +
   ylab('Case Fatality') +
   xlab('Sex')
 
@@ -404,9 +346,6 @@ tmp <- df %>%
                                   '30-39',
                                   '40-49',
                                   '50+'
-                                  #'50-59',
-                                  #'60-69',
-                                  #'70+'
                                   ))) %>%
   summarize.(cases = n(),
              deaths = sum(status == 'Dead'),
@@ -417,67 +356,35 @@ tmp <- df %>%
 
 tmp %>%
   ggplot(aes(x = age,
-             y = cfr)) +
-  geom_point(size = 8,
-             color = colors$blue) +
+             y = cfr,
+             color = age)) +
+  geom_point(size = 10) +
+  geom_point(aes(x = age,
+                 y = upper),
+             size = 2) +
+  geom_point(aes(x = age,
+                 y = lower),
+             size = 2) +
   geom_segment(aes(x = age,
                    xend = age,
                    y = lower,
                    yend = upper),
-               color = colors$blue) + 
+               size = 3) +
+  scale_color_manual(values = c(colors$gold_dark_4,
+                                colors$gold_dark_3,
+                                colors$gold_dark_1,
+                                colors$gold,
+                                colors$gold_light_1,
+                                colors$gold_light_2)) +
   scale_y_continuous(labels = scales::percent,
                      limits = c(0.2, 0.9)) +
+  theme(legend.position = 'none') +
   ylab('Case Fatality') +
   xlab('Age')
 
 ggsave(here::here('out', '13_fatality_by_age.png'),
        width = 7.2,
        height = 4.07)
-
-
-# cfr by age + sex
-tmp <- df %>%
-  mutate.(age = case_when(age %in% c('60-69', '70+', '50-59') ~ '50+'),
-          age = factor(age,
-                       levels = c(
-                                  '0-9',
-                                  '10-19',
-                                  '20-29',
-                                  '30-39',
-                                  '40-49',
-                                  '50+'
-                                  #'50-59',
-                                  #'60-69',
-                                  #'70+'
-                                  ))) %>%
-  summarize.(cases = n(),
-             deaths = sum(status == 'Dead'),
-             .by = c(sex, age)) %>%
-  mutate.(cfr = deaths / cases,
-          lower = binom::binom.confint(deaths, cases, methods = 'exact')$lower,
-          upper = binom::binom.confint(deaths, cases, methods = 'exact')$upper)
-
-
-tmp %>%
-  ggplot(aes(x = age,
-             y = cfr,
-             color = sex)) +
-  geom_point(size = 8) +
-  geom_segment(aes(x = age,
-                   xend = age,
-                   y = lower,
-                   yend = upper),
-               color = colors$blue) + 
-  scale_y_continuous(labels = scales::percent) +
-  scale_color_manual(name = '',
-                     values = c(colors$blue_light,
-                                colors$grey_dark)) +
-  ylab('Case Fatality') +
-  xlab('Age')
-
-ggsave(here::here('out', '13_fatality_by_sex_age.png'),
-       width = 10.1,
-       height = 6.25)
 
 
 # SLIDE 14 : KIDS -----
