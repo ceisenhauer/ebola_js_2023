@@ -25,6 +25,11 @@ uga_map <- ggmap::get_map(location = uga_box,
                           source = 'stamen',
                           maptype = 'terrain-background')
 
+uga_roads <- ggmap::get_map(location = uga_box,
+                          zoom = 10,
+                          source = 'stamen',
+                          maptype = 'terrain-lines')
+
 # background tiles : 2022 outbreak
 hist_box <- c(top = 5,
               bottom = -4,
@@ -49,6 +54,7 @@ africa <- epiplaces::load_map('africa')
 locations <- rio::import(here::here('data', 'map_locations.csv'))
 
 etus <- rio::import(here::here('data', 'locations_etus.xlsx')) %>%
+  filter.(label != 'Kampala ETU') %>%
   mutate.(week = lubridate::floor_date(as.Date(date_operational),
                                        unit = 'weeks',
                                        week_start = 1)) %>%
@@ -156,7 +162,8 @@ ggsave(here::here('out', '04_epicurve_by_exit_wide.svg'),
 
 
 # maps
-timepoints <- c('2022-09-12',
+timepoints <- c('2022-09-05',
+                '2022-09-12',
                 '2022-09-26',
                 '2022-09-19',
                 '2022-10-03',
@@ -164,11 +171,17 @@ timepoints <- c('2022-09-12',
                 '2022-10-17',
                 '2022-10-24',
                 '2022-10-31',
+                '2022-11-07',
                 '2022-11-14')
 
 for (t in timepoints) {
   tmp_etus <- etus %>%
-    filter.(week <= t)
+    filter.(week <= t,
+            type == 'ETU')
+
+  tmp_iso <- etus %>%
+    filter.(week <= t,
+            type == 'Isolation')
 
   tmp_cases <- df %>%
     filter.(week_onset <= t) %>%
@@ -184,7 +197,8 @@ for (t in timepoints) {
     mutate.(type = dplyr::recode(type,
                                  Alive = 'Cases',
                                  Dead = 'Deaths')) %>%
-    left_join.(locations)
+    left_join.(locations) %>%
+    filter.(n > 0)
 
   districts <- tmp_cases %>%
     mutate.(district = case_when(district == 'Jinja' ~ 'Jinja City',
@@ -193,9 +207,9 @@ for (t in timepoints) {
     unique()
 
   ggmap::ggmap(uga_map) +
-    geom_choro(data = africa,
-               fill = 'transparent',
-               linewidth = 0.75) +
+    #geom_choro(data = africa,
+               #fill = 'transparent',
+               #linewidth = 0.75) +
     geom_choro(data = uga,
                fill = 'transparent',
                linetype = 'dotted',
@@ -203,6 +217,13 @@ for (t in timepoints) {
     geom_choro(data = uga %>% filter.(adm1_name %in% districts) %>% sf::st_as_sf(),
                fill = 'transparent',
                linewidth = 0.6) +
+    geom_point(data = data.frame(n = 1,
+                                 lat = 0.567,
+                                 long = 31.9),
+               aes(x = long,
+                   y = lat,
+                   size = n),
+               color = 'transparent') +
     geom_point(data = data.frame(n = 83,
                                  lat = 0.567,
                                  long = 31.9),
@@ -221,26 +242,74 @@ for (t in timepoints) {
                           range = c(5, 45)) +
     geom_point(data = tmp_etus,
                aes(x = long,
-                   y = lat,
-                   shape = type),
+                   y = lat),
+               shape = 23,
                color = 'white',
+               fill = 'black',
                size = 4) +
-    geom_point(data = tmp_etus,
+    geom_point(data = tmp_iso,
                aes(x = long,
-                   y = lat,
-                   shape = type),
+                   y = lat),
+               shape = 22,
                color = 'black',
-               size = 3) +
+               fill = 'white',
+               size = 4) +
+    #geom_point(data = tmp_etus,
+               #aes(x = long,
+                   #y = lat,
+                   #shape = type),
+               #color = 'black',
+               #size = 3) +
     scale_shape_manual(name = '',
                        values = c(5, 0)) + 
-    theme_void()
+    theme_void() #+ 
+    #theme(legend.position = 'none')
 
-  ggsave(here::here('out', paste0('04_snapshot_', t, '.svg')),
+  ggsave(here::here('out', paste0('04_snapshot_', t, '_final.svg')),
          width = 15.7,
          height = 8.16)
 }
 
 
+# road network map
+  ggmap::ggmap(uga_roads) +
+    geom_point(data = data.frame(n = 83,
+                                 lat = 0.567,
+                                 long = 31.9),
+               aes(x = long,
+                   y = lat,
+                   size = n),
+               color = 'transparent') +
+    geom_point(data = tmp_cases,
+               aes(x = long,
+                   y = lat,
+                   size = n),
+               color = colors$blue,
+               alpha = 0.4) +
+    scale_size_continuous(name = 'Patients',
+                          breaks = c(20, 40, 60, 80),
+                          range = c(5, 45)) +
+    geom_point(data = tmp_etus,
+               aes(x = long,
+                   y = lat),
+               shape = 23,
+               color = 'white',
+               fill = 'black',
+               size = 4) +
+    geom_point(data = tmp_iso,
+               aes(x = long,
+                   y = lat),
+               shape = 22,
+               color = 'black',
+               fill = 'white',
+               size = 4) +
+    scale_shape_manual(name = '',
+                       values = c(5, 0)) + 
+    theme_void()
+
+  ggsave(here::here('out', paste0('05_mobility_map.svg')),
+         width = 15.7,
+         height = 8.16)
 
 # CHAINS OF TRANSMISSION ---------------------------------------------------------------------------
 
