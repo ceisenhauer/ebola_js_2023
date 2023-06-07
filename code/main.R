@@ -473,3 +473,81 @@ ggsave(here::here('out', '14_kids.png'),
        height = 4.12)
 
 
+# CHAINS -------------------------------------------------------------------------------------------
+cases <- rio::import(here::here('data', 'cases_clean.rds')) %>%
+  select.(visual_id, classification, outcome, gender) %>%
+  rename.(case_id = visual_id,
+          sex = gender) %>%
+  filter.(classification %in% c('CONFIRMED', 'PROBABLE')) %>%
+  mutate.(id = case_id,
+          shape = dplyr::recode(sex,
+                                FEMALE = 'dot',
+                                MALE = 'square'),
+          label = NA,
+          color.border = dplyr::recode(outcome,
+                                       RECOVERED = colors$blue,
+                                       COMMUNITY_DEATH = colors$blue_darker,
+                                       DECEASED = colors$blue_darker),
+          color.background = dplyr::recode(classification,
+                                           PROBABLE = '#ffffff',
+                                           CONFIRMED = 'black'),
+          color.background = ifelse(color.background == 'black', color.border, color.background),
+          borderWidth = 10)
+
+
+edges <- rio::import(here::here('data', 'relationships_clean.rds')) %>%
+  select.(source_person_visual_id, target_person_visual_id) %>%
+  rename.(case_id = target_person_visual_id,
+          infector_id = source_person_visual_id) %>%
+  mutate.(from = infector_id,
+          to = case_id,
+          arrows = 'to',
+          width = 10,
+          color = colors$grey_light) %>%
+  filter.(case_id %in% cases$case_id &
+          infector_id %in% cases$case_id)
+
+# VISUALIZE GRAPH -----
+visNetwork::visNetwork(nodes,
+                       edges,
+                       height = '2000px',
+                       width = '100%')
+
+
+g_vis <- visNetwork::visNetwork(cases, edges, height = '2000px', width = '100%') %>%
+    visNetwork::visNodes(scaling = list(min = 100, max = 100)) %>%
+    visNetwork::visEdges(scaling = list(min = 20, max = 20),
+                         arrowStrikethrough = FALSE,
+                         arrows = list(to = list(enabled = TRUE, scalefactor = 5))) %>%
+    visNetwork::visIgraphLayout(randomSeed = 3,
+                    physics = TRUE) %>%
+    visNetwork::visExport(type = "png", name = "export-network",
+              float = "left", label = "download", style= "") # %>%
+    #addFontAwesome() %>%
+    #visLegend(addNodes = list(list(label = 'Alive',
+                                   #shape = 'icon',
+                                   #color = colors$blue),
+                              #list(label = 'Dead',
+                                   #shape = 'icon',
+                                   #icon = list(code = 'fa-circle',
+                                               #size = 25,
+                                               #color = colors$dark_blue))))
+g_vis
+
+
+visNetwork::visSave(g_vis, 'transmission-network.png', )
+
+visSave(g_vis, 'transmission-network.html', selfcontained = TRUE)
+
+
+g <- igraph::graph.data.frame(edges[ , c('from', 'to')], directed = TRUE)# %>%
+    #layout_nicely()
+
+plot(g,
+     layout = igraph::layout_nicely(g),
+     label = NA,
+     vertex.size = 10,
+     vertex.color = nodes$color.background)
+     #vertex.color = colors$blue)
+
+
